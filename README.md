@@ -1,4 +1,4 @@
-# Recon Backend Prototype
+# Recon Framework Prototype
 
 This project is a modular backend for reconnaissance automation.  
 **Current module:** Subdomain Enumeration (Prototype)
