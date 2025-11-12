@@ -217,43 +217,6 @@ def run_zone_transfer(domain: str):
     return sorted(subdomains), elapsed
 
 
-def check_subdomain_takeover(subdomain: str) -> bool:
-    """Check for potential subdomain takeover vulnerabilities.
-
-    The function sends simple HTTP(S) requests to the subdomain and
-    inspects the response body for common patterns indicating an
-    unclaimed cloud resource or decommissioned service (e.g. AWS S3
-    bucket errors, "no such app" messages). It is a heuristic check,
-    not comprehensive.
-
-    Args:
-        subdomain (str): The subdomain to test.
-
-    Returns:
-        bool: True if a potential takeover is detected, otherwise False.
-    """
-    try:
-        for scheme in ['http://', 'https://']:
-            try:
-                resp = requests.get(f"{scheme}{subdomain}", timeout=5, allow_redirects=True)
-                text = resp.text.lower()
-                error_patterns = [
-                    'no such bucket', 'no such app', 'no such domain',
-                    'repository not found', 'there is nothing here',
-                    'this site can’t be reached', 'does not exist',
-                    'not found', 'unknown domain',
-                    "sorry, this page doesn't exist"
-                ]
-                for pattern in error_patterns:
-                    if pattern in text:
-                        return True
-            except Exception:
-                continue
-    except Exception:
-        pass
-    return False
-
-
 def enumerate_subdomains(domain: str):
     """Enumerate subdomains using multiple techniques and return detailed results.
 
@@ -287,17 +250,6 @@ def enumerate_subdomains(domain: str):
     }
     all_unique = set().union(*all_sets.values())
 
-    # Check each discovered subdomain for takeover indicators
-    takeover_flags: list[str] = []
-    for sub in all_unique:
-        if sub == domain or not sub.endswith(domain):
-            continue
-        try:
-            if check_subdomain_takeover(sub):
-                takeover_flags.append(sub)
-        except Exception:
-            continue
-
     return {
         'sublist3r_results': {
             'count': len(sublist3r_res),
@@ -327,6 +279,5 @@ def enumerate_subdomains(domain: str):
         'all_unique_combined': {
             'count': len(all_unique),
             'subdomains': sorted(all_unique)
-        },
-        'potential_takeovers': takeover_flags
+        }
     }
