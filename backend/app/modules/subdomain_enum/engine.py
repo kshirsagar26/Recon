@@ -250,24 +250,6 @@ def enumerate_subdomains(domain: str):
     }
     all_unique = set().union(*all_sets.values())
 
-    # Determine unique contributions of each source
-    unique_contributions: dict[str, list[str]] = {}
-    for name, s in all_sets.items():
-        others = set().union(*(v for k, v in all_sets.items() if k != name))
-        unique_only = s - others
-        unique_contributions[name] = sorted(unique_only)
-
-    # Check each discovered subdomain for takeover indicators
-    takeover_flags: list[str] = []
-    for sub in all_unique:
-        if sub == domain or not sub.endswith(domain):
-            continue
-        try:
-            if check_subdomain_takeover(sub):
-                takeover_flags.append(sub)
-        except Exception:
-            continue
-
     return {
         'sublist3r_results': {
             'count': len(sublist3r_res),
@@ -297,13 +279,5 @@ def enumerate_subdomains(domain: str):
         'all_unique_combined': {
             'count': len(all_unique),
             'subdomains': sorted(all_unique)
-        },
-        'unique_contributions': {
-            key: {
-                'count': len(vals),
-                'subdomains': vals
-            }
-            for key, vals in unique_contributions.items()
-        },
-        'potential_takeovers': takeover_flags
+        }
     }
