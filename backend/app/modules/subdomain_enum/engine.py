@@ -131,7 +131,7 @@ def run_subfinder(domain: str):
         return [], time.time() - start
 
 
-def run_bruteforce(domain: str, wordlist_path: str | None = None, max_workers: int = 20):
+def run_bruteforce(domain: str, wordlist_path: str | None = "wordlists/subdomains.txt", max_workers: int = 20):
     """Perform active DNS brute-force enumeration.
 
     Generates candidate subdomains from a wordlist and resolves them using
