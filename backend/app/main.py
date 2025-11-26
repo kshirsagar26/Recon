@@ -1,6 +1,9 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.modules.subdomain_enum.engine import enumerate_subdomains
+from app.modules.port_scan.engine import PortScanner, scan_subdomains
+from app.modules.port_scan.benchmark import BenchmarkSuite, compare_hybrid_vs_single
+from app.modules.port_scan.metrics import MetricsCollector, ThesisComparison
 from typing import List, Dict, Any
 import json
 import asyncio
@@ -222,6 +225,170 @@ async def search_scans(query: str):
         or query_lower in scan.get("cveData", "").lower()
     ]
     return {"results": filtered}
+
+
+# Port Scanning Endpoints
+
+@app.post("/api/port-scan/single")
+async def scan_single_host(host_data: Dict[str, Any]):
+    """
+    Scan a single host for open ports.
+    
+    Request body:
+    {
+        "host": "example.com or IP",
+        "ports": [80, 443, 8080],  # Optional, defaults to common ports
+        "technique": "tcp_connect"  # 'tcp_connect', 'syn', 'udp'
+    }
+    """
+    host = host_data.get("host", "").strip()
+    ports = host_data.get("ports", [])
+    technique = host_data.get("technique", "tcp_connect")
+    
+    if not host:
+        return {"error": "Host is required"}
+    
+    try:
+        scanner = PortScanner(timeout=3.0, max_workers=50)
+        
+        if ports:
+            results, metrics = await scanner.scan_port_range(
+                host,
+                start_port=min(ports),
+                end_port=max(ports),
+                use_common_ports=False,
+                technique=technique
+            )
+        else:
+            results, metrics = await scanner.scan_common_ports(host)
+        
+        return {
+            "host": host,
+            "results": [
+                {
+                    "port": r.port,
+                    "status": r.status,
+                    "service": r.service,
+                    "version": r.version,
+                    "banner": r.banner,
+                    "response_time": r.response_time
+                }
+                for r in results
+            ],
+            "metrics": {
+                "total_ports_scanned": metrics.total_ports_scanned,
+                "open_ports_found": metrics.open_ports_found,
+                "closed_ports": metrics.closed_ports,
+                "filtered_ports": metrics.filtered_ports,
+                "total_time": metrics.total_time,
+                "ports_per_second": metrics.ports_per_second,
+                "average_response_time": metrics.average_response_time,
+                "concurrent_connections": metrics.concurrent_connections
+            }
+        }
+    
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/port-scan/subdomains")
+async def scan_subdomains_ports(scan_data: Dict[str, Any]):
+    """
+    Scan multiple subdomains for open ports.
+    
+    Request body:
+    {
+        "subdomains": ["www.example.com", "api.example.com"],
+        "ports": [80, 443, 8080],  # Optional
+        "technique": "tcp_connect"
+    }
+    """
+    subdomains = scan_data.get("subdomains", [])
+    ports = scan_data.get("ports", [])
+    technique = scan_data.get("technique", "tcp_connect")
+    
+    if not subdomains:
+        return {"error": "Subdomains list is required"}
+    
+    try:
+        results = await scan_subdomains(
+            subdomains,
+            ports=ports if ports else None,
+            technique=technique
+        )
+        return results
+    
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/benchmark")
+async def run_benchmark(target: str = "127.0.0.1"):
+    """
+    Run comprehensive benchmark comparing port scanning tools.
+    
+    Query params:
+    - target: Host to benchmark against (default: 127.0.0.1)
+    """
+    try:
+        benchmark = BenchmarkSuite(target_host=target)
+        results = await benchmark.run_comprehensive_benchmark()
+        return results
+    
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/thesis/hybrid-comparison")
+async def hybrid_vs_single(target: str = "127.0.0.1"):
+    """
+    Compare hybrid reconnaissance vs single method scanning.
+    
+    This endpoint validates the thesis:
+    "Hybrid reconnaissance (passive + active) yields better results than single method"
+    
+    Query params:
+    - target: Host to scan (default: 127.0.0.1)
+    """
+    try:
+        comparison = await compare_hybrid_vs_single(target)
+        return comparison
+    
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/thesis/metrics")
+def get_thesis_metrics():
+    """
+    Get summary metrics for thesis comparison.
+    
+    Returns metrics formatted for research papers and thesis documentation.
+    """
+    return {
+        "thesis_question": (
+            "Can hybrid reconnaissance (combining passive and active techniques) "
+            "yield better results than using a single method?"
+        ),
+        "key_metrics": {
+            "speed": "Ports per second scanned",
+            "accuracy": "Precision, Recall, F1-Score",
+            "coverage": "Unique services discovered",
+            "efficiency": "Accuracy per unit time",
+            "stealthiness": "Detection probability"
+        },
+        "endpoints": {
+            "single_host_scan": "POST /api/port-scan/single",
+            "multi_subdomain_scan": "POST /api/port-scan/subdomains",
+            "run_benchmark": "GET /api/benchmark?target=<host>",
+            "hybrid_comparison": "GET /api/thesis/hybrid-comparison?target=<host>"
+        },
+        "documentation": {
+            "custom_scanner": "Efficient async-based port scanner with service detection",
+            "metrics": "Comprehensive metrics for thesis research",
+            "benchmark": "Comparison with Nmap, Masscan, and other tools"
+        }
+    }
 
 
 @app.websocket("/ws/scan-progress")

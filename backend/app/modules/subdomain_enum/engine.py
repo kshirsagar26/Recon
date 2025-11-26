@@ -64,8 +64,12 @@ def run_sublist3r(domain: str):
             engines=engines
         )
         elapsed = time.time() - start
+        # Filter out None values and ensure we return a list
+        result = [r for r in (result or []) if r]
         return sorted(set(result)), elapsed
-    except Exception:
+    except Exception as e:
+        # Log the error silently and return empty results
+        print(f"Sublist3r enumeration failed for {domain}: {str(e)}", flush=True)
         return [], time.time() - start
 
 
@@ -82,7 +86,10 @@ def run_crtsh(domain: str):
     try:
         response = requests.get(f'https://crt.sh/?q=%25.{domain}&output=json', timeout=10)
         if response.ok:
-            data = response.json()
+            try:
+                data = response.json()
+            except Exception:
+                return [], time.time() - start
             subdomains: set[str] = set()
             for entry in data:
                 name = entry.get('name_value')
@@ -92,7 +99,8 @@ def run_crtsh(domain: str):
                             subdomains.add(sub.strip())
             return sorted(subdomains), time.time() - start
         return [], time.time() - start
-    except Exception:
+    except Exception as e:
+        print(f"crt.sh enumeration failed for {domain}: {str(e)}", flush=True)
         return [], time.time() - start
 
 
@@ -131,7 +139,7 @@ def run_subfinder(domain: str):
         return [], time.time() - start
 
 
-def run_bruteforce(domain: str, wordlist_path: str | None = "wordlists/subdomains.txt", max_workers: int = 20):
+def run_bruteforce(domain: str, wordlist_path: str | None = None, max_workers: int = 20):
     """Perform active DNS brute-force enumeration.
 
     Generates candidate subdomains from a wordlist and resolves them using
@@ -151,6 +159,11 @@ def run_bruteforce(domain: str, wordlist_path: str | None = "wordlists/subdomain
         'ftp', 'portal', 'app', 'blog'
     ]
     prefixes: list[str] = []
+    
+    # If no wordlist_path provided, use the built-in wordlist in the module directory
+    if wordlist_path is None:
+        wordlist_path = str(Path(__file__).parent / 'wordlist' / 'subdomain.txt')
+    
     if wordlist_path and os.path.exists(wordlist_path):
         try:
             with open(wordlist_path, 'r', encoding='utf-8') as f:
@@ -172,7 +185,7 @@ def run_bruteforce(domain: str, wordlist_path: str | None = "wordlists/subdomain
             if sub:
                 found.add(sub)
     elapsed = time.time() - start
-    return sorted(found), elapsed
+    return sorted(list(found)), elapsed
 
 
 def run_zone_transfer(domain: str):

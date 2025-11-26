@@ -2,3 +2,5 @@ fastapi
 uvicorn
 requests
 sublist3r
+psutil
+python-nmap
